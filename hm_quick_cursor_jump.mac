@@ -1,0 +1,131 @@
+/* 単語の先頭一文字を指定してジャンプする
+
+＊後検索
+	検索したい単語先頭を入力
+
+＊前検索
+	シフトキーを押しながら
+
+＊Tab
+	次の単語
+
+＊Shift+Tab
+	前の単語
+
+＊注意
+	・「!"#$%&'()=~|{}*+_?><」のようなShiftキーを押しながら入力する文字
+	  は「前検索」しかできません。
+	  記号の検索は考慮していません、あしからず。
+*/
+
+
+#g_key_ctrl_w	= 0x17;
+#g_key_esc		= 0x1b;
+#g_key_enter	= 0x0d;
+#g_key_left 	= 0x1c;
+#g_key_up		= 0x1d;
+#g_key_right	= 0x1e;
+#g_key_down 	= 0x1f;
+#g_key_tab		= 0x09;
+
+//検索モードを抜けるキーコード
+#g_num=0;
+#g_finish_code[#g_num]=#g_key_ctrl_w;	#g_num=#g_num+1;
+#g_finish_code[#g_num]=#g_key_esc;		#g_num=#g_num+1;
+#g_finish_code[#g_num]=#g_key_enter;	#g_num=#g_num+1;
+//#g_finish_code[#g_num]=#g_key_left;		#g_num=#g_num+1;
+//#g_finish_code[#g_num]=#g_key_up; 	#g_num=#g_num+1;
+//#g_finish_code[#g_num]=#g_key_right;	#g_num=#g_num+1;
+//#g_finish_code[#g_num]=#g_key_down;		#g_num=#g_num+1;
+
+#g_keycode_shift=0x10;
+
+//エスケープする正規表現文字
+$g_reg_char 	= "[]()^$.*+?|\\";
+$g_escaped_char = "";
+
+//動作環境を固定化する。
+//折りたたみを維持,部分編集を維持,範囲選択,最後に移動
+//マクロ終了時に元に戻る。
+setcompatiblemode 0x0003|0x000c|0x0200|0x2000;
+$g_searchbuffer = searchbuffer;
+#g_searchoption = searchoption;
+call Main;
+setsearch $g_searchbuffer, #g_searchoption;
+endmacro;
+
+Main:
+	while(1){
+		##char_code = inputchar("検索する英数字を入力して下さい。(esc,c-w,enterで終了)");
+		call IsFinishCode ##char_code;
+		if(##return){
+			return ;
+		}
+		call MiscProcess ##char_code;
+		if(##return){
+			continue;
+		}
+
+		if(##char_code == #g_key_tab){
+			if(iskeydown(#g_keycode_shift)){
+				searchup "\\y", regular, nocasesense, hilight;
+			}else{
+				searchdown "\\y", regular, nocasesense, hilight;
+			}
+		}else{
+			call EscapeRegCgar char(##char_code);
+			if(##return){
+				$$reg	= "(?<=(^|[ \\t]|[!-/:-@[-`{-~])+)" + $g_escaped_char;
+			}else{
+				$$reg	= $g_escaped_char;
+			}
+			if(iskeydown(#g_keycode_shift)){
+				searchup $$reg, regular, nocasesense, hilight;
+			}else{
+				searchdown $$reg, regular, nocasesense, hilight;
+			}
+		}
+	}
+
+	return ;
+
+IsFinishCode:
+	##c=##1;
+	##i=0;
+	while(##i < #g_num){
+		if(##c == #g_finish_code[##i]){
+			return true;
+		}
+		##i=##i+1;
+	}
+	return false;
+
+MiscProcess:
+	##c=##1;
+	if(##c==#g_key_left){
+		left;
+		return true;
+	}
+	if(##c==#g_key_up){
+		up;
+		return true;
+	}
+	if(##c==#g_key_right){
+		right;
+		return true;
+	}
+	if(##c==#g_key_down){
+		down;
+		return true;
+	}
+	return false;
+
+EscapeRegCgar:
+	$$s = $$1;
+	##index = strstr($g_reg_char,$$s);
+	if(0 <= ##index){
+		$g_escaped_char = "\\"+$$s;
+		return true;
+	}
+	$g_escaped_char = $$s;
+	return false;
